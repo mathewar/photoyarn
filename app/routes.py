@@ -44,7 +44,6 @@ limiter = Limiter(
     storage_uri=REDIS_URL,
     default_limits=[]
 )
-limiter.init_app(main)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
