@@ -24,6 +24,19 @@ def create_app():
     
     # Ensure upload directory exists
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+    # Clean up temp_images directory on startup
+    temp_images_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'temp_images')
+    if os.path.exists(temp_images_dir):
+        for filename in os.listdir(temp_images_dir):
+            file_path = os.path.join(temp_images_dir, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            except Exception as e:
+                print(f"Warning: Could not remove {file_path}: {e}")
+    else:
+        os.makedirs(temp_images_dir, exist_ok=True)
     
     # Register blueprints
     from app.routes import main, limiter
