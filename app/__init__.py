@@ -26,7 +26,8 @@ def create_app():
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
     # Register blueprints
-    from app.routes import main
+    from app.routes import main, limiter
+    limiter.init_app(app)
     app.register_blueprint(main)
     
     return app 
