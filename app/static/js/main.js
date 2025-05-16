@@ -49,15 +49,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         fileInput.addEventListener('change', function() {
-            if (this.files.length > 0) {
-                const file = this.files[0];
-                if (file.name.toLowerCase().endsWith('.zip') && file.size <= 500 * 1024 * 1024) {
-                    selectedFile = file;
-                    startButton.disabled = false;
-                } else {
-                    selectedFile = null;
-                    startButton.disabled = true;
+            // Accept multiple files
+            let validFiles = [];
+            for (let i = 0; i < this.files.length; i++) {
+                const file = this.files[i];
+                const ext = file.name.toLowerCase().split('.').pop();
+                if ((ext === 'zip' && file.name.toLowerCase().endsWith('.zip')) ||
+                    (ext === 'jpg' && file.name.toLowerCase().endsWith('.jpg')) ||
+                    (ext === 'jpeg' && file.name.toLowerCase().endsWith('.jpeg'))) {
+                    validFiles.push(file);
                 }
+            }
+            if (validFiles.length > 0) {
+                selectedFile = validFiles;
+                startButton.disabled = false;
             } else {
                 selectedFile = null;
                 startButton.disabled = true;
@@ -65,31 +70,37 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         startButton.addEventListener('click', function() {
-            if (selectedFile) {
+            if (selectedFile && selectedFile.length > 0) {
                 uploadFile(selectedFile);
             }
         });
 
         function handleFiles(files) {
-            if (files.length === 0) return;
-            const file = files[0];
-            if (!file.name.toLowerCase().endsWith('.zip')) {
+            let validFiles = [];
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const ext = file.name.toLowerCase().split('.').pop();
+                if ((ext === 'zip' && file.name.toLowerCase().endsWith('.zip')) ||
+                    (ext === 'jpg' && file.name.toLowerCase().endsWith('.jpg')) ||
+                    (ext === 'jpeg' && file.name.toLowerCase().endsWith('.jpeg'))) {
+                    validFiles.push(file);
+                }
+            }
+            if (validFiles.length > 0) {
+                selectedFile = validFiles;
+                startButton.disabled = false;
+            } else {
                 selectedFile = null;
                 startButton.disabled = true;
-                return;
             }
-            if (file.size > 500 * 1024 * 1024) {
-                selectedFile = null;
-                startButton.disabled = true;
-                return;
-            }
-            selectedFile = file;
-            startButton.disabled = false;
         }
         
-        function uploadFile(file) {
+        function uploadFile(files) {
             const formData = new FormData();
-            formData.append('file', file);
+            // Add all valid files
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
             // Add story prompt if present
             const promptBox = document.getElementById('storyPrompt');
             if (promptBox && promptBox.value.trim()) {

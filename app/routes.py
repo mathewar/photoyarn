@@ -300,14 +300,14 @@ def index():
 @main.route('/upload', methods=['POST'])
 @limiter.limit('10 per day')
 def upload_file():
-    if 'file' not in request.files:
-        logger.error("No file part in request")
-        return jsonify({'error': 'No file part'}), 400
+    if 'files' not in request.files:
+        logger.error("No files part in request")
+        return jsonify({'error': 'No files part'}), 400
     
-    file = request.files['file']
-    if file.filename == '':
-        logger.error("No selected file")
-        return jsonify({'error': 'No selected file'}), 400
+    files = request.files.getlist('files')
+    if not files:
+        logger.error("No files selected")
+        return jsonify({'error': 'No files selected'}), 400
     
     # Get the optional story prompt, max words, max beats, and api_key from the form
     user_prompt = request.form.get('story_prompt', None)
@@ -325,61 +325,35 @@ def upload_file():
     except Exception:
         max_beats = 10
     
-    if file and allowed_file(file.filename):
-        try:
-            logger.info(f"Processing upload: {file.filename}")
-            
-            # Save the zip file
-            filename = secure_filename(file.filename)
+    # Prepare static temp_images directory
+    static_temp_dir = os.path.join(current_app.root_path, 'static', 'temp_images')
+    os.makedirs(static_temp_dir, exist_ok=True)
+    image_summaries = []
+    image_slides = []
+    for file in files:
+        filename = secure_filename(file.filename)
+        ext = filename.rsplit('.', 1)[-1].lower()
+        if ext == 'zip' and filename.endswith('.zip'):
+            # Save zip file to temp
             zip_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-            logger.info(f"Saving zip file to: {filename}")
-            
-            # Save file in chunks to handle large files
-            chunk_size = 1024 * 1024  # 1MB chunks
-            with open(zip_path, 'wb') as f:
-                while True:
-                    chunk = file.read(chunk_size)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-            logger.info("Zip file saved successfully")
-            
-            # Prepare static temp_images directory
-            static_temp_dir = os.path.join(current_app.root_path, 'static', 'temp_images')
-            os.makedirs(static_temp_dir, exist_ok=True)
-            
-            # Extract images
-            image_summaries = []
-            image_slides = []
+            file.save(zip_path)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                # Create a temporary directory for extracted images
                 extract_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'extracted')
                 os.makedirs(extract_dir, exist_ok=True)
-                logger.info(f"Created extraction directory")
-                
-                # Extract and process each image
                 image_files = [f for f in zip_ref.namelist() 
                              if f.lower().endswith(('.png', '.jpg', '.jpeg')) 
-                             and not f.startswith('._')  # Skip macOS metadata files
-                             and not f.startswith('__MACOSX')]  # Skip macOS system files
+                             and not f.startswith('._')
+                             and not f.startswith('__MACOSX')]
                 total_images = len(image_files)
-                logger.info(f"Found {total_images} images in zip file")
-                
+                logger.info(f"Found {total_images} images in zip file {filename}")
                 for i, image_file in enumerate(image_files, 1):
                     try:
-                        logger.info(f"Processing image {i}/{total_images}: {os.path.basename(image_file)}")
-                        
-                        # Extract the image
                         zip_ref.extract(image_file, extract_dir)
                         image_path = os.path.join(extract_dir, image_file)
-                        
-                        # Copy image to static/temp_images for serving
                         static_image_name = f"{i}_{os.path.basename(image_file)}"
                         static_image_path = os.path.join(static_temp_dir, static_image_name)
                         copyfile(image_path, static_image_path)
                         image_url = f"/static/temp_images/{static_image_name}"
-                        
-                        # Process the image
                         summary = process_image(image_path, api_key)
                         if summary:
                             image_summaries.append({
@@ -390,61 +364,57 @@ def upload_file():
                                 'image_url': image_url,
                                 'story_segment': summary
                             })
-                            logger.info(f"Successfully processed image {i}/{total_images}")
+                            logger.info(f"Successfully processed image {i}/{total_images} in zip {filename}")
                         else:
-                            logger.warning(f"Failed to process image {i}/{total_images}")
+                            logger.warning(f"Failed to process image {i}/{total_images} in zip {filename}")
                     except Exception as e:
-                        logger.error(f"Error processing {image_file}: {str(e)}")
+                        logger.error(f"Error processing {image_file} in zip {filename}: {str(e)}")
                         continue
-            
-            if not image_summaries:
-                logger.error("No valid images found in the zip file")
-                return jsonify({'error': 'No valid images found in the zip file'}), 400
-            
-            logger.info(f"Successfully processed {len(image_summaries)} images")
-            
-            # Generate story
-            logger.info("Generating story from image summaries...")
-            slides = generate_story(image_summaries, user_prompt, max_words, max_beats, api_key)
-            if not slides:
-                logger.error("Failed to generate story")
-                return jsonify({'error': 'Failed to generate story'}), 500
-            
-            logger.info("Story generated successfully")
-            
-            # Clean up
+            # Clean up zip and extracted files
             try:
                 os.remove(zip_path)
                 for file in os.listdir(extract_dir):
                     os.remove(os.path.join(extract_dir, file))
                 os.rmdir(extract_dir)
-                logger.info("Cleanup completed successfully")
             except Exception as e:
                 logger.error(f"Error during cleanup: {str(e)}")
-            
-            return jsonify({
-                'success': True,
-                'slides': slides,
-                'images': image_summaries,
-            })
-            
-        except Exception as e:
-            logger.error(f"Error processing upload: {str(e)}")
-            # Clean up on error
-            try:
-                if os.path.exists(zip_path):
-                    os.remove(zip_path)
-                if os.path.exists(extract_dir):
-                    for file in os.listdir(extract_dir):
-                        os.remove(os.path.join(extract_dir, file))
-                    os.rmdir(extract_dir)
-                logger.info("Cleanup completed after error")
-            except:
-                logger.error("Error during cleanup after error")
-            return jsonify({'error': str(e)}), 500
-    
-    logger.error("Invalid file type")
-    return jsonify({'error': 'Invalid file type'}), 400
+        elif ext in ('jpg', 'jpeg') and (filename.endswith('.jpg') or filename.endswith('.jpeg')):
+            # Save jpg/jpeg to temp_images
+            static_image_name = filename
+            static_image_path = os.path.join(static_temp_dir, static_image_name)
+            file.save(static_image_path)
+            image_url = f"/static/temp_images/{static_image_name}"
+            summary = process_image(static_image_path, api_key)
+            if summary:
+                image_summaries.append({
+                    'filename': filename,
+                    'summary': summary
+                })
+                image_slides.append({
+                    'image_url': image_url,
+                    'story_segment': summary
+                })
+                logger.info(f"Successfully processed image {filename}")
+            else:
+                logger.warning(f"Failed to process image {filename}")
+        else:
+            logger.warning(f"File {filename} is not a supported type and was skipped.")
+    if not image_summaries:
+        logger.error("No valid images found in the uploaded files")
+        return jsonify({'error': 'No valid images found in the uploaded files'}), 400
+    logger.info(f"Successfully processed {len(image_summaries)} images from all uploads")
+    # Generate story
+    logger.info("Generating story from image summaries...")
+    slides = generate_story(image_summaries, user_prompt, max_words, max_beats, api_key)
+    if not slides:
+        logger.error("Failed to generate story")
+        return jsonify({'error': 'Failed to generate story'}), 500
+    logger.info("Story generated successfully")
+    return jsonify({
+        'success': True,
+        'slides': slides,
+        'images': image_summaries,
+    })
 
 @main.route('/slideshow')
 def slideshow():
