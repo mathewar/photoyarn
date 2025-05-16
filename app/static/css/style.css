@@ -1,0 +1,182 @@
+:root {
+    --primary-color: #4a90e2;
+    --secondary-color: #2c3e50;
+    --background-color: #f5f6fa;
+    --text-color: #2c3e50;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--background-color);
+}
+
+header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 1rem;
+    text-align: center;
+}
+
+main {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    text-align: center;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.description {
+    color: #666;
+    margin-bottom: 2rem;
+}
+
+.file-drop-area {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    background-color: #f8f9fa;
+    transition: all 0.3s ease;
+    margin-bottom: 2rem;
+}
+
+.file-drop-area.highlight {
+    border-color: #007bff;
+    background-color: #e9ecef;
+}
+
+.drop-message {
+    color: #666;
+}
+
+.drop-message p {
+    margin: 0.5rem 0;
+}
+
+#uploadButton {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+#uploadButton:hover {
+    background-color: #0056b3;
+}
+
+.status-container {
+    margin-top: 2rem;
+}
+
+.progress-container {
+    margin: 1rem 0;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 20px;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    width: 0;
+    height: 100%;
+    background-color: #007bff;
+    transition: width 0.3s ease;
+}
+
+.status-message {
+    margin-top: 1rem;
+    color: #666;
+}
+
+.status-message.error {
+    color: #dc3545;
+}
+
+.status-message.success {
+    color: #28a745;
+}
+
+.status-message.warning {
+    color: #ffc107;
+}
+
+.slideshow-container {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slide {
+    margin-bottom: 2rem;
+}
+
+.slide img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.story-text {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: var(--background-color);
+    border-radius: 4px;
+}
+
+.navigation {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.nav-button {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.controls {
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.control-button {
+    background-color: var(--secondary-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+} 

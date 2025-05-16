@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Yarn - Story Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Photo Yarn</h1>
+        <p class="description">Upload a zip file containing your images, and we'll create a story from them.</p>
+        <div style="text-align:center; margin-bottom:1.5rem;">
+            <!-- Yarn ball SVG icon -->
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;">
+                <circle cx="24" cy="24" r="20" stroke="#4a90e2" stroke-width="4" fill="#f8f9fa"/>
+                <path d="M10 38 Q24 24 38 38" stroke="#e67e22" stroke-width="3" fill="none"/>
+                <path d="M14 34 Q24 24 34 34" stroke="#e67e22" stroke-width="2" fill="none"/>
+                <path d="M18 30 Q24 24 30 30" stroke="#e67e22" stroke-width="1.5" fill="none"/>
+                <path d="M24 44 Q24 24 24 4" stroke="#e67e22" stroke-width="2" fill="none"/>
+            </svg>
+        </div>
+        <div style="margin-bottom:1.5rem;">
+            <button id="advancedToggle" type="button" style="background:none; border:none; color:#4a90e2; font-weight:bold; font-size:1.1em; cursor:pointer; display:flex; align-items:center; gap:0.5em;">
+                <span id="advancedIcon" style="transition:transform 0.2s; display:inline-block;">&#9654;</span> Advanced
+            </button>
+            <div id="advancedFields" style="display:none; margin-top:1rem;">
+                <label for="storyPrompt" style="font-weight:bold; margin-bottom:0.5rem; display:block;">Optional: Guide your story</label>
+                <textarea id="storyPrompt" rows="3" placeholder="Describe characters, place, style, or anything you want in your story..." style="width:100%; max-width:600px; margin-bottom:1.5rem; padding:0.5rem; border-radius:4px; border:1px solid #ccc;"></textarea>
+                <label for="maxWords" style="font-weight:bold; margin-bottom:0.5rem; display:block;">Max words per story beat</label>
+                <input id="maxWords" type="number" min="10" max="500" value="100" style="width:100px; margin-bottom:1.5rem; padding:0.5rem; border-radius:4px; border:1px solid #ccc;">
+                <label for="maxBeats" style="font-weight:bold; margin-bottom:0.5rem; display:block;">Max number of story beats</label>
+                <input id="maxBeats" type="number" min="1" max="50" value="10" style="width:100px; margin-bottom:1.5rem; padding:0.5rem; border-radius:4px; border:1px solid #ccc;">
+                <label for="apiKey" style="font-weight:bold; margin-bottom:0.5rem; display:block;">Gemini API Key (optional, never logged or stored)</label>
+                <input id="apiKey" type="password" autocomplete="off" style="width:100%; max-width:600px; margin-bottom:1.5rem; padding:0.5rem; border-radius:4px; border:1px solid #ccc;" placeholder="Paste your Gemini API key here (optional)">
+            </div>
+        </div>
+        
+        <div id="dropArea" class="file-drop-area">
+            <input type="file" id="fileInput" accept=".zip" style="display: none;">
+            <div class="drop-message">
+                <p>Drag and drop your zip file here</p>
+                <p>or</p>
+                <button id="uploadButton" type="button">Choose File</button>
+            </div>
+        </div>
+        <button id="startButton" type="button" style="margin-top:1.5rem; padding:0.75rem 2rem; font-size:1.1em; background:#4a90e2; color:white; border:none; border-radius:4px; cursor:pointer;" disabled>Start</button>
+        <div id="processingSpinner" style="display:none; text-align:center; margin-top:2rem;">
+            <div class="spinner" style="margin:0 auto; width:48px; height:48px; border:6px solid #f3f3f3; border-top:6px solid #4a90e2; border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <p style="margin-top:1rem; color:#4a90e2; font-weight:bold;">Processing...</p>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <style>
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    </style>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var advancedToggle = document.getElementById('advancedToggle');
+        var advancedFields = document.getElementById('advancedFields');
+        var advancedIcon = document.getElementById('advancedIcon');
+        if (advancedToggle && advancedFields && advancedIcon) {
+            advancedToggle.addEventListener('click', function() {
+                if (advancedFields.style.display === 'none') {
+                    advancedFields.style.display = 'block';
+                    advancedIcon.style.transform = 'rotate(90deg)';
+                } else {
+                    advancedFields.style.display = 'none';
+                    advancedIcon.style.transform = 'rotate(0deg)';
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html> 
