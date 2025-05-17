@@ -378,8 +378,7 @@ def upload_file():
             except Exception as e:
                 logger.error(f"Error during cleanup: {str(e)}")
         elif ext in ('jpg', 'jpeg') and (filename.endswith('.jpg') or filename.endswith('.jpeg')):
-            # Save jpg/jpeg to temp_images
-            static_image_name = filename
+            static_image_name = f"{len(image_summaries)+1}_{filename}"
             static_image_path = os.path.join(static_temp_dir, static_image_name)
             file.save(static_image_path)
             image_url = f"/static/temp_images/{static_image_name}"
