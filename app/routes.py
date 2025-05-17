@@ -58,16 +58,15 @@ def process_image(image_path, api_key=None):
         logger.info(f"Processing image: {os.path.basename(image_path)}")
         with Image.open(image_path) as img:
             logger.info(f"Image loaded successfully. Original size: {img.size}")
+            # Use thumbnail for memory-efficient resizing
             max_width = 400
             width, height = img.size
             if width > max_width:
-                ratio = max_width / width
-                new_height = int(height * ratio)
-                img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
-                logger.info(f"Image resized to: ({max_width}, {new_height})")
-            img_byte_arr = io.BytesIO()
+                img.thumbnail((max_width, max_width * 10), Image.LANCZOS)  # maintain aspect ratio
+                logger.info(f"Image resized to: {img.size}")
             img = img.convert('RGB')
-            img.save(img_byte_arr, format='JPEG')
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='JPEG', quality=70)
             img_byte_arr = img_byte_arr.getvalue()
             logger.info("Image converted to JPEG format")
             # Use the provided API key if present, else default
