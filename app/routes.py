@@ -15,6 +15,13 @@ from dotenv import load_dotenv
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import redis
+import uuid
+from datetime import datetime
+import magic
+import threading
+import time
+from queue import Queue
+import heapq
 
 # Load environment variables from .env
 load_dotenv()
@@ -292,6 +299,55 @@ Here are the image descriptions:
             logger.error(f"Gemini API error response: {e.response}")
         return None
 
+def generate_short_uuid():
+    """Generate a short UUID (8 characters) for story IDs"""
+    return str(uuid.uuid4())[:8]
+
+# Global cleanup manager
+class CleanupManager:
+    def __init__(self):
+        self.cleanup_queue = []  # Priority queue of (timestamp, story_id)
+        self.lock = threading.Lock()
+        self.thread = threading.Thread(target=self._cleanup_worker, daemon=True)
+        self.thread.start()
+        logger.info("Cleanup manager initialized")
+
+    def schedule_cleanup(self, story_id):
+        """Schedule a story for cleanup in 4 hours"""
+        cleanup_time = time.time() + (4 * 60 * 60)  # 4 hours from now
+        with self.lock:
+            heapq.heappush(self.cleanup_queue, (cleanup_time, story_id))
+            logger.info(f"Scheduled cleanup for story {story_id} at {datetime.fromtimestamp(cleanup_time)}")
+
+    def _cleanup_worker(self):
+        """Background worker that handles all cleanup operations"""
+        while True:
+            try:
+                current_time = time.time()
+                
+                with self.lock:
+                    # Check if there are any stories to clean up
+                    while self.cleanup_queue and self.cleanup_queue[0][0] <= current_time:
+                        _, story_id = heapq.heappop(self.cleanup_queue)
+                        story_dir = os.path.join(current_app.static_folder, 'stories', story_id)
+                        
+                        if os.path.exists(story_dir):
+                            try:
+                                shutil.rmtree(story_dir)
+                                logger.info(f"Cleaned up story {story_id}")
+                            except Exception as e:
+                                logger.error(f"Error cleaning up story {story_id}: {str(e)}")
+                
+                # Sleep for a short time before next check
+                time.sleep(60)  # Check every minute
+                
+            except Exception as e:
+                logger.error(f"Error in cleanup worker: {str(e)}")
+                time.sleep(60)  # Wait before retrying
+
+# Initialize the cleanup manager
+cleanup_manager = CleanupManager()
+
 @main.route('/')
 def index():
     return render_template('index.html')
@@ -299,61 +355,46 @@ def index():
 @main.route('/upload', methods=['POST'])
 @limiter.limit('10 per day')
 def upload_file():
-    if 'files' not in request.files:
-        logger.error("No files part in request")
-        return jsonify({'error': 'No files part'}), 400
+    if 'files[]' not in request.files:
+        return jsonify({'error': 'No files provided'}), 400
     
-    files = request.files.getlist('files')
-    if not files:
-        logger.error("No files selected")
+    files = request.files.getlist('files[]')
+    if not files or files[0].filename == '':
         return jsonify({'error': 'No files selected'}), 400
+
+    # Generate unique story ID
+    story_id = generate_short_uuid()
+    story_dir = os.path.join(current_app.static_folder, 'stories', story_id)
+    temp_dir = os.path.join(story_dir, 'temp_images')
     
-    # Get the optional story prompt, max words, max beats, and api_key from the form
-    user_prompt = request.form.get('story_prompt', None)
-    api_key = request.form.get('api_key', None)
-    try:
-        max_words = int(request.form.get('max_words', 100))
-        if max_words < 10 or max_words > 500:
-            max_words = 100
-    except Exception:
-        max_words = 100
-    try:
-        max_beats = int(request.form.get('max_beats', 10))
-        if max_beats < 1 or max_beats > 50:
-            max_beats = 10
-    except Exception:
-        max_beats = 10
-    
-    # Prepare static temp_images directory
-    static_temp_dir = os.path.join(current_app.root_path, 'static', 'temp_images')
-    os.makedirs(static_temp_dir, exist_ok=True)
+    # Create directories
+    os.makedirs(story_dir, exist_ok=True)
+    os.makedirs(temp_dir, exist_ok=True)
+
     image_summaries = []
     image_slides = []
-    for file in files:
-        filename = secure_filename(file.filename)
-        ext = filename.rsplit('.', 1)[-1].lower()
-        if ext == 'zip' and filename.endswith('.zip'):
-            # Save zip file to temp
-            zip_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-            file.save(zip_path)
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                extract_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'extracted')
-                os.makedirs(extract_dir, exist_ok=True)
-                image_files = [f for f in zip_ref.namelist() 
-                             if f.lower().endswith(('.png', '.jpg', '.jpeg')) 
-                             and not f.startswith('._')
-                             and not f.startswith('__MACOSX')]
-                total_images = len(image_files)
-                logger.info(f"Found {total_images} images in zip file {filename}")
-                for i, image_file in enumerate(image_files, 1):
-                    try:
-                        zip_ref.extract(image_file, extract_dir)
-                        image_path = os.path.join(extract_dir, image_file)
-                        static_image_name = f"{i}_{os.path.basename(image_file)}"
-                        static_image_path = os.path.join(static_temp_dir, static_image_name)
+    
+    try:
+        for file in files:
+            filename = secure_filename(file.filename)
+            ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+            
+            if ext == 'zip':
+                # Process zip file
+                zip_path = os.path.join(temp_dir, filename)
+                file.save(zip_path)
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(temp_dir)
+                os.remove(zip_path)
+                
+                for i, image_file in enumerate(sorted(os.listdir(temp_dir))):
+                    if image_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        image_path = os.path.join(temp_dir, image_file)
+                        static_image_name = f"{i+1}_{os.path.basename(image_file)}"
+                        static_image_path = os.path.join(temp_dir, static_image_name)
                         copyfile(image_path, static_image_path)
-                        image_url = f"/static/temp_images/{static_image_name}"
-                        summary = process_image(image_path, api_key)
+                        image_url = f"/static/stories/{story_id}/temp_images/{static_image_name}"
+                        summary = process_image(static_image_path, request.form.get('apiKey'))
                         if summary:
                             image_summaries.append({
                                 'filename': image_file,
@@ -363,56 +404,82 @@ def upload_file():
                                 'image_url': image_url,
                                 'story_segment': summary
                             })
-                            logger.info(f"Successfully processed image {i}/{total_images} in zip {filename}")
+                            logger.info(f"Successfully processed image {image_file}")
                         else:
-                            logger.warning(f"Failed to process image {i}/{total_images} in zip {filename}")
-                    except Exception as e:
-                        logger.error(f"Error processing {image_file} in zip {filename}: {str(e)}")
-                        continue
-            # Clean up zip and extracted files
-            try:
-                os.remove(zip_path)
-                for file in os.listdir(extract_dir):
-                    os.remove(os.path.join(extract_dir, file))
-                os.rmdir(extract_dir)
-            except Exception as e:
-                logger.error(f"Error during cleanup: {str(e)}")
-        elif ext in ('jpg', 'jpeg') and (filename.endswith('.jpg') or filename.endswith('.jpeg')):
-            static_image_name = f"{len(image_summaries)+1}_{filename}"
-            static_image_path = os.path.join(static_temp_dir, static_image_name)
-            file.save(static_image_path)
-            image_url = f"/static/temp_images/{static_image_name}"
-            summary = process_image(static_image_path, api_key)
-            if summary:
-                image_summaries.append({
-                    'filename': filename,
-                    'summary': summary
-                })
-                image_slides.append({
-                    'image_url': image_url,
-                    'story_segment': summary
-                })
-                logger.info(f"Successfully processed image {filename}")
-            else:
-                logger.warning(f"Failed to process image {filename}")
-        else:
-            logger.warning(f"File {filename} is not a supported type and was skipped.")
-    if not image_summaries:
-        logger.error("No valid images found in the uploaded files")
-        return jsonify({'error': 'No valid images found in the uploaded files'}), 400
-    logger.info(f"Successfully processed {len(image_summaries)} images from all uploads")
-    # Generate story
-    logger.info("Generating story from image summaries...")
-    slides = generate_story(image_summaries, user_prompt, max_words, max_beats, api_key)
-    if not slides:
-        logger.error("Failed to generate story")
-        return jsonify({'error': 'Failed to generate story'}), 500
-    logger.info("Story generated successfully")
-    return jsonify({
-        'success': True,
-        'slides': slides,
-        'images': image_summaries,
-    })
+                            logger.warning(f"Failed to process image {image_file}")
+                        os.remove(image_path)
+            
+            elif ext in ('jpg', 'jpeg') and (filename.endswith('.jpg') or filename.endswith('.jpeg')):
+                static_image_name = f"{len(image_summaries)+1}_{filename}"
+                static_image_path = os.path.join(temp_dir, static_image_name)
+                file.save(static_image_path)
+                image_url = f"/static/stories/{story_id}/temp_images/{static_image_name}"
+                summary = process_image(static_image_path, request.form.get('apiKey'))
+                if summary:
+                    image_summaries.append({
+                        'filename': filename,
+                        'summary': summary
+                    })
+                    image_slides.append({
+                        'image_url': image_url,
+                        'story_segment': summary
+                    })
+                    logger.info(f"Successfully processed image {filename}")
+                else:
+                    logger.warning(f"Failed to process image {filename}")
+
+        if not image_summaries:
+            return jsonify({'error': 'No valid images found'}), 400
+
+        logger.info(f"Successfully processed {len(image_summaries)} images from all uploads")
+        
+        # Generate story
+        logger.info("Generating story from image summaries...")
+        story = generate_story(image_summaries, request.form.get('storyPrompt'), request.form.get('maxWords'), request.form.get('maxBeats'), request.form.get('apiKey'))
+        
+        if not story:
+            return jsonify({'error': 'Failed to generate story'}), 500
+
+        # Save story data
+        story_data = {
+            'id': story_id,
+            'created_at': datetime.now().isoformat(),
+            'slides': image_slides,
+            'story': story
+        }
+        
+        with open(os.path.join(story_dir, 'story.json'), 'w') as f:
+            json.dump(story_data, f)
+
+        # Schedule cleanup for this story
+        cleanup_manager.schedule_cleanup(story_id)
+
+        return jsonify({
+            'success': True,
+            'story_id': story_id,
+            'story': story,
+            'image_slides': image_slides
+        })
+
+    except Exception as e:
+        logger.error(f"Error processing files: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@main.route('/story/<story_id>')
+def view_story(story_id):
+    story_dir = os.path.join(current_app.static_folder, 'stories', story_id)
+    story_file = os.path.join(story_dir, 'story.json')
+    
+    if not os.path.exists(story_file):
+        return jsonify({'error': 'Story not found'}), 404
+        
+    with open(story_file, 'r') as f:
+        story_data = json.load(f)
+    
+    return render_template('story.html', 
+                         story_id=story_id,
+                         slides=story_data['slides'],
+                         story=story_data['story'])
 
 @main.route('/slideshow')
 def slideshow():

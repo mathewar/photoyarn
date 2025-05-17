@@ -2,6 +2,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('fileInput');
     const uploadButton = document.getElementById('uploadButton');
     const dropArea = document.getElementById('dropArea');
+    const startButton = document.getElementById('startButton');
+    const fileList = document.getElementById('fileList');
+    const processingSpinner = document.getElementById('processingSpinner');
+    const patienceMessage = document.getElementById('patienceMessage');
     
     let isUploading = false;
     
@@ -10,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Drag and drop handlers
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
         });
         
         function preventDefaults(e) {
@@ -38,128 +43,97 @@ document.addEventListener('DOMContentLoaded', function() {
         function handleDrop(e) {
             const dt = e.dataTransfer;
             const files = dt.files;
-            handleFiles(files);
+            handleFiles({ target: { files: files } });
         }
         
-        const startButton = document.getElementById('startButton');
-        let selectedFile = null;
+        const selectedFile = null;
 
         uploadButton.addEventListener('click', function() {
             fileInput.click();
         });
 
-        fileInput.addEventListener('change', function() {
-            // Accept multiple files
-            let validFiles = [];
-            for (let i = 0; i < this.files.length; i++) {
-                const file = this.files[i];
-                const ext = file.name.toLowerCase().split('.').pop();
-                if ((ext === 'zip' && file.name.toLowerCase().endsWith('.zip')) ||
-                    (ext === 'jpg' && file.name.toLowerCase().endsWith('.jpg')) ||
-                    (ext === 'jpeg' && file.name.toLowerCase().endsWith('.jpeg'))) {
-                    validFiles.push(file);
-                }
-            }
-            if (validFiles.length > 0) {
-                selectedFile = validFiles;
-                startButton.disabled = false;
-            } else {
-                selectedFile = null;
-                startButton.disabled = true;
-            }
-        });
+        fileInput.addEventListener('change', handleFiles, false);
 
-        startButton.addEventListener('click', function() {
-            if (selectedFile && selectedFile.length > 0) {
-                uploadFile(selectedFile);
-            }
-        });
+        startButton.addEventListener('click', startProcessing);
 
-        function handleFiles(files) {
-            let validFiles = [];
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const ext = file.name.toLowerCase().split('.').pop();
-                if ((ext === 'zip' && file.name.toLowerCase().endsWith('.zip')) ||
-                    (ext === 'jpg' && file.name.toLowerCase().endsWith('.jpg')) ||
-                    (ext === 'jpeg' && file.name.toLowerCase().endsWith('.jpeg'))) {
-                    validFiles.push(file);
-                }
-            }
-            if (validFiles.length > 0) {
-                selectedFile = validFiles;
-                startButton.disabled = false;
-            } else {
-                selectedFile = null;
-                startButton.disabled = true;
-            }
+        function handleFiles(e) {
+            const files = [...e.target.files];
+            updateFileList(files);
+            startButton.disabled = files.length === 0;
         }
         
-        function uploadFile(files) {
+        function updateFileList(files) {
+            fileList.innerHTML = '';
+            const ul = document.createElement('ul');
+            ul.style.listStyle = 'none';
+            ul.style.padding = '0';
+            ul.style.margin = '0';
+            
+            files.forEach(file => {
+                const li = document.createElement('li');
+                li.style.padding = '0.5rem';
+                li.style.borderBottom = '1px solid #eee';
+                li.textContent = `${file.name} (${formatFileSize(file.size)})`;
+                ul.appendChild(li);
+            });
+            
+            fileList.appendChild(ul);
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function startProcessing() {
+            const files = fileInput.files;
+            if (files.length === 0) return;
+
             const formData = new FormData();
-            // Add all valid files
             for (let i = 0; i < files.length; i++) {
-                formData.append('files', files[i]);
+                formData.append('files[]', files[i]);
             }
-            // Add story prompt if present
-            const promptBox = document.getElementById('storyPrompt');
-            if (promptBox && promptBox.value.trim()) {
-                formData.append('story_prompt', promptBox.value.trim());
-            }
-            // Add max words if present
-            const maxWordsBox = document.getElementById('maxWords');
-            if (maxWordsBox && maxWordsBox.value) {
-                formData.append('max_words', maxWordsBox.value);
-            }
-            // Add max beats if present
-            const maxBeatsBox = document.getElementById('maxBeats');
-            if (maxBeatsBox && maxBeatsBox.value) {
-                formData.append('max_beats', maxBeatsBox.value);
-            }
-            // Add API key if present
-            const apiKeyBox = document.getElementById('apiKey');
-            if (apiKeyBox && apiKeyBox.value.trim()) {
-                formData.append('api_key', apiKeyBox.value.trim());
-            }
-            
-            isUploading = true;
-            // Show spinner and hide drop area
-            const spinner = document.getElementById('processingSpinner');
-            if (spinner) spinner.style.display = 'block';
+
+            // Add optional fields
+            const storyPrompt = document.getElementById('storyPrompt').value;
+            const maxWords = document.getElementById('maxWords').value;
+            const maxBeats = document.getElementById('maxBeats').value;
+            const apiKey = document.getElementById('apiKey').value;
+
+            if (storyPrompt) formData.append('storyPrompt', storyPrompt);
+            if (maxWords) formData.append('maxWords', maxWords);
+            if (maxBeats) formData.append('maxBeats', maxBeats);
+            if (apiKey) formData.append('apiKey', apiKey);
+
+            // Show processing UI
+            processingSpinner.style.display = 'block';
+            patienceMessage.style.display = 'block';
+            startButton.disabled = true;
             dropArea.style.display = 'none';
-            
+            fileList.style.display = 'none';
+
             fetch('/upload', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                isUploading = false;
-                // Hide spinner (will redirect soon)
-                if (spinner) spinner.style.display = 'none';
                 if (data.error) {
-                    // Show drop area again if error
-                    dropArea.style.display = '';
                     throw new Error(data.error);
                 }
-                
-                if (data.success) {
-                    // Store the story data in sessionStorage
-                    sessionStorage.setItem('storyData', JSON.stringify(data));
-                    // Redirect to slideshow
-                    window.location.href = '/slideshow';
-                }
+                // Redirect to the story page
+                window.location.href = `/story/${data.story_id}`;
             })
             .catch(error => {
-                isUploading = false;
-                // Hide spinner and show drop area on error
-                if (spinner) spinner.style.display = 'none';
-                dropArea.style.display = '';
+                alert('Error: ' + error.message);
+                processingSpinner.style.display = 'none';
+                patienceMessage.style.display = 'none';
+                startButton.disabled = false;
+                dropArea.style.display = 'block';
+                fileList.style.display = 'block';
             });
         }
     }
