@@ -1,142 +1,160 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const dropArea = document.getElementById('dropArea');
     const fileInput = document.getElementById('fileInput');
     const uploadButton = document.getElementById('uploadButton');
-    const dropArea = document.getElementById('dropArea');
-    const startButton = document.getElementById('startButton');
     const fileList = document.getElementById('fileList');
+    const startButton = document.getElementById('startButton');
     const processingSpinner = document.getElementById('processingSpinner');
     const patienceMessage = document.getElementById('patienceMessage');
-    
-    let isUploading = false;
-    
-    // Only set up drag-and-drop and upload logic if dropArea exists (upload page)
-    if (dropArea) {
-        // Drag and drop handlers
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, preventDefaults, false);
-            document.body.addEventListener(eventName, preventDefaults, false);
-        });
-        
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, highlight, false);
-        });
-        
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, unhighlight, false);
-        });
-        
-        function highlight(e) {
-            dropArea.classList.add('highlight');
-        }
-        
-        function unhighlight(e) {
-            dropArea.classList.remove('highlight');
-        }
-        
-        dropArea.addEventListener('drop', handleDrop, false);
-        
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            handleFiles({ target: { files: files } });
-        }
-        
-        const selectedFile = null;
+    const advancedToggle = document.getElementById('advancedToggle');
+    const advancedFields = document.getElementById('advancedFields');
+    const advancedIcon = document.getElementById('advancedIcon');
 
-        uploadButton.addEventListener('click', function() {
-            fileInput.click();
-        });
+    // Initialize advanced section
+    advancedFields.style.display = 'block';
+    advancedIcon.style.transform = 'rotate(90deg)';
 
-        fileInput.addEventListener('change', handleFiles, false);
+    // Handle advanced toggle
+    advancedToggle.addEventListener('click', function() {
+        const isVisible = advancedFields.style.display !== 'none';
+        advancedFields.style.display = isVisible ? 'none' : 'block';
+        advancedIcon.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(90deg)';
+    });
 
-        startButton.addEventListener('click', startProcessing);
+    // Handle file input click
+    uploadButton.addEventListener('click', () => fileInput.click());
 
-        function handleFiles(e) {
-            const files = [...e.target.files];
-            updateFileList(files);
-            startButton.disabled = files.length === 0;
-        }
-        
-        function updateFileList(files) {
-            fileList.innerHTML = '';
-            const ul = document.createElement('ul');
-            ul.style.listStyle = 'none';
-            ul.style.padding = '0';
-            ul.style.margin = '0';
-            
-            files.forEach(file => {
-                const li = document.createElement('li');
-                li.style.padding = '0.5rem';
-                li.style.borderBottom = '1px solid #eee';
-                li.textContent = `${file.name} (${formatFileSize(file.size)})`;
-                ul.appendChild(li);
-            });
-            
-            fileList.appendChild(ul);
-        }
-        
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
+    // Handle file selection
+    fileInput.addEventListener('change', handleFiles);
 
-        function startProcessing() {
-            const files = fileInput.files;
-            if (files.length === 0) return;
+    // Prevent default drag behaviors
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
 
-            const formData = new FormData();
-            for (let i = 0; i < files.length; i++) {
-                formData.append('files[]', files[i]);
-            }
+    // Highlight drop area when item is dragged over it
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, highlight, false);
+    });
 
-            // Add optional fields
-            const storyPrompt = document.getElementById('storyPrompt').value;
-            const maxWords = document.getElementById('maxWords').value;
-            const maxBeats = document.getElementById('maxBeats').value;
-            const apiKey = document.getElementById('apiKey').value;
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, unhighlight, false);
+    });
 
-            if (storyPrompt) formData.append('storyPrompt', storyPrompt);
-            if (maxWords) formData.append('maxWords', maxWords);
-            if (maxBeats) formData.append('maxBeats', maxBeats);
-            if (apiKey) formData.append('apiKey', apiKey);
+    // Handle dropped files
+    dropArea.addEventListener('drop', handleDrop, false);
 
-            // Show processing UI
-            processingSpinner.style.display = 'block';
-            patienceMessage.style.display = 'block';
-            startButton.disabled = true;
-            dropArea.style.display = 'none';
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function highlight(e) {
+        dropArea.classList.add('highlight');
+    }
+
+    function unhighlight(e) {
+        dropArea.classList.remove('highlight');
+    }
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles({ target: { files: files } });
+    }
+
+    function handleFiles(e) {
+        const files = [...e.target.files];
+        updateFileList(files);
+    }
+
+    function updateFileList(files) {
+        if (files.length === 0) {
             fileList.style.display = 'none';
+            startButton.disabled = true;
+            return;
+        }
 
-            fetch('/upload', {
+        fileList.style.display = 'block';
+        fileList.innerHTML = '<ul></ul>';
+        const ul = fileList.querySelector('ul');
+
+        files.forEach(file => {
+            const li = document.createElement('li');
+            const fileName = document.createElement('span');
+            fileName.className = 'file-name';
+            fileName.textContent = file.name;
+            
+            const fileSize = document.createElement('span');
+            fileSize.className = 'file-size';
+            fileSize.textContent = formatFileSize(file.size);
+            
+            li.appendChild(fileName);
+            li.appendChild(fileSize);
+            ul.appendChild(li);
+        });
+
+        startButton.disabled = false;
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    startButton.addEventListener('click', async function() {
+        const files = fileInput.files;
+        if (files.length === 0) return;
+
+        // Show processing state
+        startButton.disabled = true;
+        processingSpinner.style.display = 'block';
+        patienceMessage.style.display = 'block';
+
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('files[]', files[i]);
+        }
+
+        // Add advanced options
+        const storyPrompt = document.getElementById('storyPrompt').value;
+        const maxWords = document.getElementById('maxWords').value;
+        const maxBeats = document.getElementById('maxBeats').value;
+        const apiKey = document.getElementById('apiKey').value;
+
+        if (storyPrompt) formData.append('story_prompt', storyPrompt);
+        if (maxWords) formData.append('max_words', maxWords);
+        if (maxBeats) formData.append('max_beats', maxBeats);
+        if (apiKey) formData.append('api_key', apiKey);
+
+        try {
+            const response = await fetch('/upload', {
                 method: 'POST',
                 body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                // Redirect to the story page
-                window.location.href = `/story/${data.story_id}`;
-            })
-            .catch(error => {
-                alert('Error: ' + error.message);
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                window.location.href = `/story/${result.story_id}`;
+            } else {
+                alert(result.error || 'An error occurred while processing your files.');
                 processingSpinner.style.display = 'none';
                 patienceMessage.style.display = 'none';
                 startButton.disabled = false;
-                dropArea.style.display = 'block';
-                fileList.style.display = 'block';
-            });
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while uploading your files.');
+            processingSpinner.style.display = 'none';
+            patienceMessage.style.display = 'none';
+            startButton.disabled = false;
         }
-    }
+    });
 
     // Slideshow logic for /slideshow page
     if (window.location.pathname === '/slideshow') {

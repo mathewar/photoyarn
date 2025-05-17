@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Photo Yarn - Story Generator</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <h1>Photo Yarn</h1>
-        <p class="description">Upload a zip file containing your images, and we'll create a story from them.</p>
-        <div style="text-align:center; margin-bottom:1.5rem;">
-            <!-- Yarn ball SVG icon -->
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;">
+        <p class="description">Transform your photos into captivating stories. Upload your images and let AI craft a unique narrative.</p>
+        
+        <div style="text-align:center; margin-bottom:2rem;">
+            <svg width="64" height="64" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="24" cy="24" r="20" stroke="#4a90e2" stroke-width="4" fill="#f8f9fa"/>
                 <path d="M10 38 Q24 24 38 38" stroke="#e67e22" stroke-width="3" fill="none"/>
                 <path d="M14 34 Q24 24 34 34" stroke="#e67e22" stroke-width="2" fill="none"/>
@@ -20,81 +21,56 @@
                 <path d="M24 44 Q24 24 24 4" stroke="#e67e22" stroke-width="2" fill="none"/>
             </svg>
         </div>
-        <div style="margin: 1rem 0; padding: 1rem; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; color: #856404;">
-            <p style="margin: 0;"><strong>Note:</strong> Your photos and stories will be automatically deleted after 4 hours. Please save any important content before then.</p>
+
+        <div class="warning-box">
+            <p><strong>Note:</strong> Your photos and stories will be automatically deleted after 4 hours. Please save any important content before then.</p>
         </div>
-        <div style="margin-bottom:1.5rem;">
-            <button id="advancedToggle" type="button" style="background:none; border:none; color:#4a90e2; font-weight:bold; font-size:1.1em; cursor:pointer; display:flex; align-items:center; gap:0.5em;">
-                <span id="advancedIcon" style="transition:transform 0.2s; display:inline-block;">&#9654;</span> Advanced
+
+        <div class="advanced-section">
+            <button id="advancedToggle" class="advanced-toggle">
+                <span id="advancedIcon" style="transition:transform 0.2s; display:inline-block;">&#9654;</span>
+                Advanced Options
             </button>
-            <div id="advancedFields" style="display:block; margin-top:1rem;">
-                <label for="storyPrompt" style="font-weight:bold; margin-bottom:0.5rem; display:block;">Optional: Guide your story</label>
-                <textarea id="storyPrompt" rows="3" placeholder="Describe characters, place, style, or anything you want in your story..." style="width:100%; max-width:600px; margin-bottom:1.5rem; padding:0.5rem; border-radius:4px; border:1px solid #ccc;"></textarea>
-                <label for="maxWords" style="font-weight:bold; margin-bottom:0.5rem; display:block;">Max words per story beat</label>
-                <input id="maxWords" type="number" min="10" max="500" value="100" style="width:100px; margin-bottom:1.5rem; padding:0.5rem; border-radius:4px; border:1px solid #ccc;">
-                <label for="maxBeats" style="font-weight:bold; margin-bottom:0.5rem; display:block;">Max number of story beats</label>
-                <input id="maxBeats" type="number" min="1" max="50" value="10" style="width:100px; margin-bottom:1.5rem; padding:0.5rem; border-radius:4px; border:1px solid #ccc;">
-                <label for="apiKey" style="font-weight:bold; margin-bottom:0.5rem; display:block;">Gemini API Key (optional, never logged or stored)</label>
-                <input id="apiKey" type="password" autocomplete="off" style="width:100%; max-width:600px; margin-bottom:1.5rem; padding:0.5rem; border-radius:4px; border:1px solid #ccc;" placeholder="Paste your Gemini API key here (optional)">
+            <div id="advancedFields" class="advanced-fields">
+                <div class="form-group">
+                    <label for="storyPrompt">Guide your story (optional)</label>
+                    <textarea id="storyPrompt" class="form-control" rows="3" placeholder="Describe characters, place, style, or anything you want in your story..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="maxWords">Max words per story beat</label>
+                    <input id="maxWords" type="number" class="form-control" min="10" max="500" value="100">
+                </div>
+                <div class="form-group">
+                    <label for="maxBeats">Max number of story beats</label>
+                    <input id="maxBeats" type="number" class="form-control" min="1" max="50" value="10">
+                </div>
+                <div class="form-group">
+                    <label for="apiKey">Gemini API Key (optional)</label>
+                    <input id="apiKey" type="password" class="form-control" autocomplete="off" placeholder="Paste your Gemini API key here (optional)">
+                </div>
             </div>
         </div>
         
         <div id="dropArea" class="file-drop-area">
             <input type="file" id="fileInput" accept=".zip,.jpg,.jpeg" multiple style="display: none;">
             <div class="drop-message">
-                <p>Drag and drop your zip or jpg files here</p>
+                <p>Drag and drop your photos here</p>
                 <p>or</p>
                 <button id="uploadButton" type="button">Choose Files</button>
             </div>
         </div>
-        <div id="fileList" style="margin-top:1rem; margin-bottom:1rem;"></div>
-        <button id="startButton" type="button" style="margin-top:1.5rem; padding:0.75rem 2rem; font-size:1.1em; background:#4a90e2; color:white; border:none; border-radius:4px; cursor:pointer;" disabled>Start</button>
-        <div id="processingSpinner" style="display:none; text-align:center; margin-top:2rem;">
-            <div class="spinner" style="margin:0 auto; width:48px; height:48px; border:6px solid #f3f3f3; border-top:6px solid #4a90e2; border-radius:50%; animation:spin 1s linear infinite;"></div>
-            <p style="margin-top:1rem; color:#4a90e2; font-weight:bold;">Processing...</p>
-            <p id="patienceMessage" style="margin-top:0.5rem; color:#e67e22; font-weight:bold; display:none;">This may take a few minutes. Please be patient.</p>
+
+        <div id="fileList" class="file-list" style="display: none;"></div>
+        
+        <button id="startButton" type="button" disabled>Create Story</button>
+
+        <div id="processingSpinner" class="processing-spinner" style="display:none;">
+            <div class="spinner"></div>
+            <p style="margin-top:1rem; color:var(--primary-color); font-weight:500;">Processing your photos...</p>
+            <p id="patienceMessage" style="margin-top:0.5rem; color:var(--warning-color); font-weight:500; display:none;">This may take a few minutes. Please be patient.</p>
         </div>
     </div>
     
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <style>
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    </style>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var advancedToggle = document.getElementById('advancedToggle');
-        var advancedFields = document.getElementById('advancedFields');
-        var advancedIcon = document.getElementById('advancedIcon');
-        if (advancedFields) {
-            advancedFields.style.display = 'block';
-        }
-        if (advancedIcon) {
-            advancedIcon.style.transform = 'rotate(90deg)';
-        }
-        if (advancedToggle && advancedFields && advancedIcon) {
-            advancedToggle.addEventListener('click', function() {
-                if (advancedFields.style.display === 'none') {
-                    advancedFields.style.display = 'block';
-                    advancedIcon.style.transform = 'rotate(90deg)';
-                } else {
-                    advancedFields.style.display = 'none';
-                    advancedIcon.style.transform = 'rotate(0deg)';
-                }
-            });
-        }
-        var startButton = document.getElementById('startButton');
-        if (startButton) {
-            startButton.addEventListener('click', function() {
-                var patienceMsg = document.getElementById('patienceMessage');
-                if (patienceMsg) {
-                    patienceMsg.style.display = 'block';
-                }
-            });
-        }
-    });
-    </script>
 </body>
 </html> 
