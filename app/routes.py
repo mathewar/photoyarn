@@ -148,6 +148,10 @@ def generate_story(image_summaries, user_prompt=None, max_words=100, max_beats=1
     """Generate a story using Gemini API based on image summaries, optional user prompt, max words per beat, max number of beats, and optional API key"""
     try:
         logger.info("Starting story generation")
+        # Convert max_words and max_beats to integers, using defaults if None
+        max_words = int(max_words) if max_words is not None else 100
+        max_beats = int(max_beats) if max_beats is not None else 10
+        
         # Use the provided API key if present, else default
         if api_key:
             genai.configure(api_key=api_key)
@@ -394,7 +398,7 @@ def upload_file():
                         static_image_path = os.path.join(temp_dir, static_image_name)
                         copyfile(image_path, static_image_path)
                         image_url = f"/static/stories/{story_id}/temp_images/{static_image_name}"
-                        summary = process_image(static_image_path, request.form.get('apiKey'))
+                        summary = process_image(static_image_path, request.form.get('api_key'))
                         if summary:
                             image_summaries.append({
                                 'filename': image_file,
@@ -414,7 +418,7 @@ def upload_file():
                 static_image_path = os.path.join(temp_dir, static_image_name)
                 file.save(static_image_path)
                 image_url = f"/static/stories/{story_id}/temp_images/{static_image_name}"
-                summary = process_image(static_image_path, request.form.get('apiKey'))
+                summary = process_image(static_image_path, request.form.get('api_key'))
                 if summary:
                     image_summaries.append({
                         'filename': filename,
@@ -433,9 +437,21 @@ def upload_file():
 
         logger.info(f"Successfully processed {len(image_summaries)} images from all uploads")
         
+        # Get and convert form parameters
+        story_prompt = request.form.get('story_prompt')
+        max_words = request.form.get('max_words')
+        max_beats = request.form.get('max_beats')
+        api_key = request.form.get('api_key')
+        
         # Generate story
         logger.info("Generating story from image summaries...")
-        story = generate_story(image_summaries, request.form.get('storyPrompt'), request.form.get('maxWords'), request.form.get('maxBeats'), request.form.get('apiKey'))
+        story = generate_story(
+            image_summaries,
+            story_prompt,
+            max_words,
+            max_beats,
+            api_key
+        )
         
         if not story:
             return jsonify({'error': 'Failed to generate story'}), 500
